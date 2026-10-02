@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Freeflow d'Halloween</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter & Fredoka One -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka One', cursive, sans-serif;
+        }
+        
+        /* Grid Canvas Container */
+        .game-board-container {
+            touch-action: none; /* Prevents touch scrolling while drawing */
+        }
+
+        /* Pulsing dot animation for starting dots */
+        @keyframes pulse-dot {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        .dot-pulse {
+            animation: pulse-dot 2s infinite ease-in-out;
+        }
+
+        /* Spooky background grid pattern */
+        .bg-spooky {
+            background-color: #0b1120;
+            background-image: 
+                radial-gradient(#334155 1.5px, transparent 1.5px), 
+                radial-gradient(#1e293b 1.5px, #0b1120 1.5px);
+            background-size: 36px 36px;
+            background-position: 0 0, 18px 18px;
+        }
+
+        /* Darkened, high-contrast cell grid borders for TNI & screens */
+        .grid-cell-border {
+            border: 2px solid #334155; /* Slate-700 prominent line */
+            box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Print Mode CSS optimizations */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full overflow-hidden flex flex-col justify-between">
+
+    <!-- Application Header -->
+    <header class="bg-slate-900/95 border-b-2 border-purple-500/40 px-3 py-1.5 sm:py-2 flex-none z-20 shadow-xl">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <!-- Title & Subtitle -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <span class="text-3xl sm:text-4xl" role="img" aria-label="Pumpkin">🎃</span>
+                <div>
+                    <h1 class="text-lg sm:text-2xl font-game text-amber-400 tracking-wide leading-tight drop-shadow-md">
+                        Freeflow d'Halloween
+                    </h1>
+                    <p class="text-xs sm:text-sm text-purple-200 font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        <span>Réalise l'activité le plus rapidement possible.</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="flex items-center gap-1 sm:gap-2 bg-slate-950/90 p-1 rounded-xl border border-slate-700">
+                <button id="tab-game-btn" onclick="switchTab('game')" class="px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 bg-purple-600 text-white shadow-md">
+                    <i class="fa-solid fa-gamepad"></i>
+                    <span>Jeu</span>
+                </button>
+                <button id="tab-print-btn" onclick="switchTab('print')" class="px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+                    <i class="fa-solid fa-print"></i>
+                    <span>Imprimables</span>
+                </button>
+                <button id="tab-solution-btn" onclick="switchTab('solution')" class="px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+                    <i class="fa-solid fa-key"></i>
+                    <span>Corrigé</span>
+                </button>
+            </div>
+
+            <!-- Header Controls (Sound, Timer, Level Switcher) -->
+            <div id="game-controls" class="flex items-center gap-2">
+                <!-- Sound Toggle -->
+                <button id="sound-btn" onclick="toggleSound()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-600 text-sm flex items-center justify-center w-10 h-10 shadow" title="Activer/Désactiver le son">
+                    <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+                </button>
+
+                <!-- Timer -->
+                <div class="bg-slate-950 border-2 border-amber-500/50 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-amber-400 font-mono text-sm sm:text-base font-bold shadow">
+                    <i class="fa-solid fa-stopwatch text-amber-400"></i>
+                    <span id="timer-display">00:00</span>
+                </div>
+
+                <!-- Level Selector Dropdown -->
+                <div class="flex items-center gap-1">
+                    <button onclick="changeLevel(-1)" class="p-2 rounded-xl bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-500/50 text-xs w-9 h-9 flex items-center justify-center active:scale-95 shadow">
+                        <i class="fa-solid fa-chevron-left text-sm"></i>
+                    </button>
+                    <select id="level-select" onchange="selectLevel(this.value)" class="bg-slate-950 border-2 border-purple-500/60 text-purple-200 rounded-xl px-2.5 py-1.5 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-400 shadow">
+                        <!-- Options generated in JS -->
+                    </select>
+                    <button onclick="changeLevel(1)" class="p-2 rounded-xl bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-500/50 text-xs w-9 h-9 flex items-center justify-center active:scale-95 shadow">
+                        <i class="fa-solid fa-chevron-right text-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT VIEW CONTAINER -->
+    <main class="flex-1 relative overflow-hidden flex flex-col justify-between items-center p-1.5 sm:p-3 bg-spooky">
+        
+        <!-- ==================== VIEW 1: GAME PLAY ==================== -->
+        <section id="view-game" class="w-full h-full flex flex-col justify-between items-center max-w-5xl mx-auto">
+            
+            <!-- Game Status Bar (Pairs connected, Coverage) -->
+            <div class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-slate-900/90 border-2 border-purple-500/40 rounded-2xl shadow-lg text-xs sm:text-sm flex-none">
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <span id="level-badge" class="bg-amber-500 text-slate-950 font-game px-3 py-1 rounded-full text-xs sm:text-sm shadow-md">
+                        Niveau 1
+                    </span>
+                    <span id="pairs-badge" class="text-purple-200 font-semibold">
+                        Paires : <span id="pairs-count" class="text-amber-400 font-bold">0</span> / <span id="pairs-total">3</span>
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-200 font-bold hidden sm:inline">Remplissage (100% requis) :</span>
+                        <div class="w-24 sm:w-40 bg-slate-950 h-4 rounded-full overflow-hidden border-2 border-slate-700 shadow-inner">
+                            <div id="coverage-bar" class="bg-gradient-to-r from-amber-500 via-yellow-400 to-green-400 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                        <span id="coverage-text" class="text-green-400 font-mono font-extrabold text-xs sm:text-sm">0%</span>
+                    </div>
+
+                    <!-- Reset Current Level Button -->
+                    <button onclick="resetCurrentLevel()" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs sm:text-sm transition flex items-center gap-1.5 shadow-md active:scale-95">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>Effacer</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- GAME BOARD AREA (Maximizes cell size, bold darkened grid) -->
+            <div class="flex-1 w-full flex items-center justify-center p-1 min-h-0">
+                <div id="board-wrapper" class="game-board-container relative w-[min(90vw,68vh)] h-[min(90vw,68vh)] bg-slate-950 rounded-2xl border-4 border-purple-500 shadow-2xl overflow-hidden flex items-center justify-center">
+                    
+                    <!-- SVG Overlay for Paths -->
+                    <svg id="game-svg" class="absolute inset-0 w-full h-full pointer-events-none z-10"></svg>
+
+                    <!-- HTML Grid Layer for Cells (6x6 Darkened Sharp Borders) -->
+                    <div id="game-grid" class="grid grid-cols-6 grid-rows-6 w-full h-full relative z-0">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Quick Info / Instructions -->
+            <div class="w-full text-center text-xs sm:text-sm text-purple-200 font-medium py-1 flex-none flex items-center justify-center gap-3 sm:gap-6 bg-slate-900/80 border border-slate-800 rounded-xl px-2">
+                <span><i class="fa-solid fa-hand-pointer text-amber-400 mr-1"></i> Relie les paires identiques sans croiser les lignes.</span>
+                <span class="text-amber-300 font-bold"><i class="fa-solid fa-square-check text-green-400 mr-1"></i> Remplis TOUTES les cases !</span>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 2: PRINTABLE WORKSHEETS ==================== -->
+        <section id="view-print" class="hidden w-full h-full overflow-y-auto p-4 bg-slate-100 text-slate-900 rounded-2xl shadow-inner">
+            <div class="max-w-5xl mx-auto space-y-6">
+                <!-- Printable Controls -->
+                <div class="no-print flex items-center justify-between bg-white p-4 rounded-xl shadow-md border-2 border-slate-300">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">Fiches Imprimables & Captures d'écran</h2>
+                        <p class="text-xs sm:text-sm text-slate-600">Grilles vierges 6×6 sur fond blanc pour impression ou intégration Word / Canva.</p>
+                    </div>
+                    <button onclick="window.print()" class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-sm shadow-lg flex items-center gap-2">
+                        <i class="fa-solid fa-print"></i> Imprimer les 10 Fiches
+                    </button>
+                </div>
+
+                <!-- Printable Grid Gallery (Clean White Background, Crisp Dark Lines) -->
+                <div id="print-gallery" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 3: TEACHER SOLUTIONS / CORRIGÉ ==================== -->
+        <section id="view-solution" class="hidden w-full h-full overflow-y-auto p-4 bg-slate-950 text-slate-100 rounded-2xl border border-purple-500/30">
+            <div class="max-w-5xl mx-auto space-y-6">
+                <div class="flex items-center justify-between bg-slate-900 p-4 rounded-xl border-2 border-amber-500/40 shadow-lg">
+                    <div>
+                        <h2 class="text-xl font-bold font-game text-amber-400">Corrigé des Niveaux (Solutions Complètes)</h2>
+                        <p class="text-xs sm:text-sm text-slate-300">Vue enseignant avec 100% de la grille couverte et tous les chemins tracés.</p>
+                    </div>
+                    <span class="px-3 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 rounded-xl text-xs sm:text-sm font-bold">
+                        10 Niveaux Valides
+                    </span>
+                </div>
+
+                <!-- Solutions Grid Gallery -->
+                <div id="solution-gallery" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- VICTORY CELEBRATION MODAL -->
+    <div id="victory-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-all duration-300 relative overflow-hidden">
+            <!-- Spooky Decor -->
+            <div class="text-5xl mb-2 animate-bounce">👻 🎃 🦇</div>
+            <h2 class="text-2xl sm:text-3xl font-game text-amber-400 mb-1">Bravo ! Niveau Réussi !</h2>
+            <p class="text-slate-200 text-sm mb-4 font-medium">Tu as relié toutes les paires et rempli 100% de la grille !</p>
+            
+            <div class="bg-slate-950 rounded-2xl p-3 border-2 border-slate-700 mb-6 flex items-center justify-around">
+                <div>
+                    <div class="text-xs text-slate-400 uppercase font-bold">Temps réalisé</div>
+                    <div id="modal-time" class="text-xl font-bold font-mono text-amber-400">00:00</div>
+                </div>
+                <div class="border-r border-slate-700 h-8"></div>
+                <div>
+                    <div class="text-xs text-slate-400 uppercase font-bold">Grille remplie</div>
+                    <div class="text-xl font-bold text-green-400">100%</div>
+                </div>
+            </div>
+
+            <button id="next-level-modal-btn" onclick="nextLevelFromModal()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-game text-lg rounded-2xl shadow-xl transition transform active:scale-95 flex items-center justify-center gap-2">
+                <span>Niveau Suivant</span>
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           HALLOWEEN FREE FLOW - ENGINE & 100% COVERAGE GUARANTEED LEVEL DATA
+           ========================================================================== */
+
+        const HALLOWEEN_THEME = {
+            1: { id: 1, name: 'Citrouille', color: '#FF7A00', bg: 'bg-orange-500', symbol: '🎃' },
+            2: { id: 2, name: 'Fantôme', color: '#A855F7', bg: 'bg-purple-500', symbol: '👻' },
+            3: { id: 3, name: 'Chauve-souris', color: '#06B6D4', bg: 'bg-cyan-500', symbol: '🦇' },
+            4: { id: 4, name: 'Bonbon', color: '#22C55E', bg: 'bg-green-500', symbol: '🍬' },
+            5: { id: 5, name: 'Araignée', color: '#EAB308', bg: 'bg-yellow-500', symbol: '🕷️' },
+            6: { id: 6, name: 'Chapeau', color: '#EC4899', bg: 'bg-pink-500', symbol: '🧙' }
+        };
+
+        // 10 HANDCRAFTED 6x6 LEVELS WITH SMOOTH PROGRESSION & GUARANTEED 100% GRID COVERAGE (36 CELLS)
+        const GAME_LEVELS = [
+            {
+                id: 1,
+                title: "Niveau 1 : Premiers Serpentins (3 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [1, 0] },
+                    { colorId: 2, start: [2, 0], end: [3, 0] },
+                    { colorId: 3, start: [4, 0], end: [5, 0] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,5],[1,4],[1,3],[1,2],[1,1],[1,0]],
+                    2: [[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[3,5],[3,4],[3,3],[3,2],[3,1],[3,0]],
+                    3: [[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[5,5],[5,4],[5,3],[5,2],[5,1],[5,0]]
+                }
+            },
+            {
+                id: 2,
+                title: "Niveau 2 : Le Grand Contournement (3 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [5, 0] },
+                    { colorId: 2, start: [1, 0], end: [4, 0] },
+                    { colorId: 3, start: [2, 0], end: [3, 0] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[5,4],[5,3],[5,2],[5,1],[5,0]],
+                    2: [[1,0],[1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[4,4],[4,3],[4,2],[4,1],[4,0]],
+                    3: [[2,0],[2,1],[2,2],[2,3],[3,3],[3,2],[3,1],[3,0]]
+                }
+            },
+            {
+                id: 3,
+                title: "Niveau 3 : Les Anneaux Concentriques (3 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 1], end: [0, 4] },
+                    { colorId: 2, start: [1, 1], end: [1, 4] },
+                    { colorId: 3, start: [0, 2], end: [0, 3] }
+                ],
+                solutionPaths: {
+                    1: [[0,1],[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[5,1],[5,2],[5,3],[5,4],[5,5],[4,5],[3,5],[2,5],[1,5],[0,5],[0,4]],
+                    2: [[1,1],[2,1],[3,1],[4,1],[4,2],[4,3],[4,4],[3,4],[2,4],[1,4]],
+                    3: [[0,2],[1,2],[2,2],[3,2],[3,3],[2,3],[1,3],[0,3]]
+                }
+            },
+            {
+                id: 4,
+                title: "Niveau 4 : Les Quatre Coins (4 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [1, 1] },
+                    { colorId: 2, start: [0, 5], end: [1, 4] },
+                    { colorId: 3, start: [5, 0], end: [4, 1] },
+                    { colorId: 4, start: [5, 5], end: [4, 4] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[1,2],[2,2],[2,1],[2,0],[1,0],[1,1]],
+                    2: [[0,5],[0,4],[0,3],[1,3],[2,3],[2,4],[2,5],[1,5],[1,4]],
+                    3: [[5,0],[5,1],[5,2],[4,2],[3,2],[3,1],[3,0],[4,0],[4,1]],
+                    4: [[5,5],[5,4],[5,3],[4,3],[3,3],[3,4],[3,5],[4,5],[4,4]]
+                }
+            },
+            {
+                id: 5,
+                title: "Niveau 5 : Les Turbines d'Halloween (4 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [2, 2] },
+                    { colorId: 2, start: [0, 5], end: [2, 3] },
+                    { colorId: 3, start: [5, 0], end: [3, 2] },
+                    { colorId: 4, start: [5, 5], end: [3, 3] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[1,2],[1,1],[1,0],[2,0],[2,1],[2,2]],
+                    2: [[0,5],[0,4],[0,3],[1,3],[1,4],[1,5],[2,5],[2,4],[2,3]],
+                    3: [[5,0],[5,1],[5,2],[4,2],[4,1],[4,0],[3,0],[3,1],[3,2]],
+                    4: [[5,5],[5,4],[5,3],[4,3],[4,4],[4,5],[3,5],[3,4],[3,3]]
+                }
+            },
+            {
+                id: 6,
+                title: "Niveau 6 : Le Pont Central (5 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [2, 2] },
+                    { colorId: 2, start: [0, 5], end: [2, 3] },
+                    { colorId: 3, start: [5, 0], end: [3, 2] },
+                    { colorId: 4, start: [5, 5], end: [3, 3] },
+                    { colorId: 5, start: [0, 2], end: [0, 3] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[1,1],[1,0],[2,0],[2,1],[2,2]],
+                    2: [[0,5],[0,4],[1,4],[1,5],[2,5],[2,4],[2,3]],
+                    3: [[5,0],[5,1],[5,2],[4,2],[4,1],[4,0],[3,0],[3,1],[3,2]],
+                    4: [[5,5],[5,4],[5,3],[4,3],[4,4],[4,5],[3,5],[3,4],[3,3]],
+                    5: [[0,2],[1,2],[1,3],[0,3]]
+                }
+            },
+            {
+                id: 7,
+                title: "Niveau 7 : Le Labyrinthe Imbriqué (5 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [2, 2], end: [2, 3] },
+                    { colorId: 2, start: [3, 2], end: [3, 3] },
+                    { colorId: 3, start: [1, 1], end: [4, 1] },
+                    { colorId: 4, start: [1, 0], end: [4, 0] },
+                    { colorId: 5, start: [2, 0], end: [3, 0] }
+                ],
+                solutionPaths: {
+                    1: [[2,2],[2,3]],
+                    2: [[3,2],[3,3]],
+                    3: [[1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[4,4],[4,3],[4,2],[4,1]],
+                    4: [[1,0],[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5],[5,4],[5,3],[5,2],[5,1],[5,0],[4,0]],
+                    5: [[2,0],[2,1],[3,1],[3,0]]
+                }
+            },
+            {
+                id: 8,
+                title: "Niveau 8 : Les Cascades Parallèles (5 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [1, 1] },
+                    { colorId: 2, start: [0, 2], end: [1, 3] },
+                    { colorId: 3, start: [0, 4], end: [1, 5] },
+                    { colorId: 4, start: [1, 0], end: [5, 5] },
+                    { colorId: 5, start: [5, 0], end: [5, 4] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[1,1]],
+                    2: [[0,2],[0,3],[1,3]],
+                    3: [[0,4],[0,5],[1,5]],
+                    4: [[1,0],[2,0],[2,1],[1,2],[2,2],[2,3],[1,4],[2,4],[2,5],[3,5],[3,4],[3,3],[3,2],[3,1],[3,0],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[5,5]],
+                    5: [[5,0],[5,1],[5,2],[5,3],[5,4]]
+                }
+            },
+            {
+                id: 9,
+                title: "Niveau 9 : La Toile d'Araignée (6 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [1, 2] },
+                    { colorId: 2, start: [0, 3], end: [1, 5] },
+                    { colorId: 3, start: [1, 0], end: [1, 1] },
+                    { colorId: 4, start: [1, 3], end: [1, 4] },
+                    { colorId: 5, start: [2, 0], end: [5, 1] },
+                    { colorId: 6, start: [2, 3], end: [5, 4] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[1,2]],
+                    2: [[0,3],[0,4],[0,5],[1,5]],
+                    3: [[1,0],[1,1]],
+                    4: [[1,3],[1,4]],
+                    5: [[2,0],[2,1],[2,2],[3,2],[3,1],[3,0],[4,0],[4,1],[4,2],[5,2],[5,0],[5,1]],
+                    6: [[2,3],[2,4],[2,5],[3,5],[3,4],[3,3],[4,3],[4,4],[4,5],[5,5],[5,3],[5,4]]
+                }
+            },
+            {
+                id: 10,
+                title: "Niveau 10 : Le Chef-d'œuvre Final (6 Paires)",
+                gridSize: 6,
+                pairs: [
+                    { colorId: 1, start: [0, 0], end: [5, 5] },
+                    { colorId: 2, start: [1, 0], end: [5, 4] },
+                    { colorId: 3, start: [2, 0], end: [5, 3] },
+                    { colorId: 4, start: [3, 0], end: [5, 2] },
+                    { colorId: 5, start: [4, 0], end: [4, 1] },
+                    { colorId: 6, start: [5, 0], end: [5, 1] }
+                ],
+                solutionPaths: {
+                    1: [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[1,5],[2,5],[3,5],[4,5],[5,5]],
+                    2: [[1,0],[1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[4,4],[5,4]],
+                    3: [[2,0],[2,1],[2,2],[2,3],[3,3],[4,3],[5,3]],
+                    4: [[3,0],[3,1],[3,2],[4,2],[5,2]],
+                    5: [[4,0],[4,1]],
+                    6: [[5,0],[5,1]]
+                }
+            }
+        ];
+
+        // STATE VARIABLES
+        let currentLevelIndex = 0;
+        let activePaths = {}; // { colorId: [[r,c], [r,c], ...] }
+        let isDrawing = false;
+        let activeColorId = null;
+        let isSoundMuted = false;
+        let timerSeconds = 0;
+        let timerInterval = null;
+
+        // AUDIO SYNTHESIS VIA WEB AUDIO API
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playSound(type) {
+            if (isSoundMuted) return;
+            const ctx = getAudioContext();
+            if (!ctx) return;
+
+            try {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+
+                if (type === 'step') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(450, now);
+                    osc.frequency.exponentialRampToValueAtTime(650, now + 0.04);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+                    osc.start(now);
+                    osc.stop(now + 0.04);
+                } else if (type === 'connect') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.08);
+                    osc.frequency.setValueAtTime(783.99, now + 0.16);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+                    osc.start(now);
+                    osc.stop(now + 0.32);
+                } else if (type === 'erase') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(280, now);
+                    osc.frequency.linearRampToValueAtTime(140, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'victory') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const subOsc = ctx.createOscillator();
+                        const subGain = ctx.createGain();
+                        subOsc.type = 'triangle';
+                        subOsc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                        subGain.gain.setValueAtTime(0.2, now + idx * 0.1);
+                        subGain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+                        subOsc.connect(subGain);
+                        subGain.connect(ctx.destination);
+                        subOsc.start(now + idx * 0.1);
+                        subOsc.stop(now + idx * 0.1 + 0.4);
+                    });
+                }
+            } catch (e) {
+                console.warn('Audio API notice:', e);
+            }
+        }
+
+        function toggleSound() {
+            isSoundMuted = !isSoundMuted;
+            const icon = document.getElementById('sound-icon');
+            const btn = document.getElementById('sound-btn');
+            if (isSoundMuted) {
+                icon.className = 'fa-solid fa-volume-xmark';
+                btn.classList.add('text-slate-500');
+            } else {
+                icon.className = 'fa-solid fa-volume-high';
+                btn.classList.remove('text-slate-500');
+            }
+        }
+
+        // INITIALIZATION
+        window.addEventListener('DOMContentLoaded', () => {
+            populateLevelSelect();
+            initLevel(0);
+            renderPrintGallery();
+            renderSolutionGallery();
+            setupPointerListeners();
+            
+            window.addEventListener('resize', () => {
+                redrawSVGPaths();
+            });
+        });
+
+        function populateLevelSelect() {
+            const select = document.getElementById('level-select');
+            select.innerHTML = '';
+            GAME_LEVELS.forEach((level, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = `Niveau ${level.id}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function selectLevel(idx) {
+            initLevel(parseInt(idx, 10));
+        }
+
+        function changeLevel(delta) {
+            let next = currentLevelIndex + delta;
+            if (next >= 0 && next < GAME_LEVELS.length) {
+                document.getElementById('level-select').value = next;
+                initLevel(next);
+            }
+        }
+
+        function initLevel(index) {
+            currentLevelIndex = index;
+            const level = GAME_LEVELS[currentLevelIndex];
+            
+            // Reset active paths
+            activePaths = {};
+            level.pairs.forEach(pair => {
+                activePaths[pair.colorId] = [];
+            });
+
+            // UI Badges
+            document.getElementById('level-badge').textContent = `Niveau ${level.id}`;
+            document.getElementById('pairs-total').textContent = level.pairs.length;
+            document.getElementById('pairs-count').textContent = '0';
+            document.getElementById('coverage-text').textContent = '0%';
+            document.getElementById('coverage-bar').style.width = '0%';
+
+            // Render HTML Grid
+            renderGrid(level);
+            redrawSVGPaths();
+
+            // Reset Timer
+            resetTimer();
+            startTimer();
+        }
+
+        function renderGrid(level) {
+            const gridEl = document.getElementById('game-grid');
+            gridEl.innerHTML = '';
+
+            // Create 36 cells (6x6) with sharp darkened borders
+            for (let r = 0; r < 6; r++) {
+                for (let c = 0; c < 6; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative grid-cell-border flex items-center justify-center select-none cursor-pointer bg-slate-900/60 hover:bg-slate-800/80 transition-colors';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    // Check if endpoint
+                    const endpoint = level.pairs.find(p => 
+                        (p.start[0] === r && p.start[1] === c) || 
+                        (p.end[0] === r && p.end[1] === c)
+                    );
+
+                    if (endpoint) {
+                        const theme = HALLOWEEN_THEME[endpoint.colorId];
+                        cell.dataset.colorId = endpoint.colorId;
+                        
+                        // Render Large Dot / Icon
+                        const dot = document.createElement('div');
+                        dot.className = `w-4/5 h-4/5 rounded-full flex items-center justify-center text-xl sm:text-3xl font-bold shadow-xl dot-pulse z-20 pointer-events-none border-2 border-white/20`;
+                        dot.style.backgroundColor = theme.color;
+                        dot.innerHTML = `<span class="drop-shadow-md">${theme.symbol}</span>`;
+                        cell.appendChild(dot);
+                    }
+
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function setupPointerListeners() {
+            const board = document.getElementById('board-wrapper');
+
+            board.addEventListener('pointerdown', handlePointerDown);
+            window.addEventListener('pointermove', handlePointerMove);
+            window.addEventListener('pointerup', handlePointerUp);
+            window.addEventListener('pointercancel', handlePointerUp);
+        }
+
+        function getCellFromCoords(x, y) {
+            const grid = document.getElementById('game-grid');
+            const rect = grid.getBoundingClientRect();
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                return null;
+            }
+            const col = Math.floor(((x - rect.left) / rect.width) * 6);
+            const row = Math.floor(((y - rect.top) / rect.height) * 6);
+            if (row >= 0 && row < 6 && col >= 0 && col < 6) {
+                return { r: row, c: col };
+            }
+            return null;
+        }
+
+        function handlePointerDown(e) {
+            e.preventDefault();
+            const cell = getCellFromCoords(e.clientX, e.clientY);
+            if (!cell) return;
+
+            const level = GAME_LEVELS[currentLevelIndex];
+            
+            // Check if user clicked an endpoint
+            const pair = level.pairs.find(p => 
+                (p.start[0] === cell.r && p.start[1] === cell.c) || 
+                (p.end[0] === cell.r && p.end[1] === cell.c)
+            );
+
+            if (pair) {
+                isDrawing = true;
+                activeColorId = pair.colorId;
+                activePaths[activeColorId] = [[cell.r, cell.c]];
+                playSound('step');
+                redrawSVGPaths();
+                updateProgress();
+                return;
+            }
+
+            // Check if user clicked an existing drawn path
+            for (const [colorIdStr, path] of Object.entries(activePaths)) {
+                const colorId = parseInt(colorIdStr, 10);
+                const index = path.findIndex(pt => pt[0] === cell.r && pt[1] === cell.c);
+                if (index !== -1) {
+                    isDrawing = true;
+                    activeColorId = colorId;
+                    activePaths[colorId] = path.slice(0, index + 1);
+                    playSound('step');
+                    redrawSVGPaths();
+                    updateProgress();
+                    return;
+                }
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!isDrawing || !activeColorId) return;
+            e.preventDefault();
+
+            const cell = getCellFromCoords(e.clientX, e.clientY);
+            if (!cell) return;
+
+            const currentPath = activePaths[activeColorId];
+            if (!currentPath || currentPath.length === 0) return;
+
+            const lastCell = currentPath[currentPath.length - 1];
+
+            // Ignore if same cell
+            if (lastCell[0] === cell.r && lastCell[1] === cell.c) return;
+
+            // Must be orthogonally adjacent
+            const dist = Math.abs(cell.r - lastCell[0]) + Math.abs(cell.c - lastCell[1]);
+            if (dist !== 1) return;
+
+            // Backtracking check
+            if (currentPath.length > 1) {
+                const prevCell = currentPath[currentPath.length - 2];
+                if (prevCell[0] === cell.r && prevCell[1] === cell.c) {
+                    currentPath.pop();
+                    playSound('step');
+                    redrawSVGPaths();
+                    updateProgress();
+                    return;
+                }
+            }
+
+            const level = GAME_LEVELS[currentLevelIndex];
+
+            // Block if cell is a DIFFERENT color's endpoint
+            const otherEndpoint = level.pairs.find(p => 
+                p.colorId !== activeColorId && 
+                ((p.start[0] === cell.r && p.start[1] === cell.c) || (p.end[0] === cell.r && p.end[1] === cell.c))
+            );
+            if (otherEndpoint) return;
+
+            // Truncate other paths if crossed over
+            for (const [cidStr, path] of Object.entries(activePaths)) {
+                const cid = parseInt(cidStr, 10);
+                if (cid !== activeColorId) {
+                    const idx = path.findIndex(pt => pt[0] === cell.r && pt[1] === cell.c);
+                    if (idx !== -1) {
+                        activePaths[cid] = path.slice(0, idx);
+                        playSound('erase');
+                    }
+                }
+            }
+
+            // Append cell
+            currentPath.push([cell.r, cell.c]);
+            playSound('step');
+            redrawSVGPaths();
+            updateProgress();
+
+            // Check if matching target endpoint reached
+            const matchingPair = level.pairs.find(p => p.colorId === activeColorId);
+            const isTargetEndpoint = 
+                (matchingPair.start[0] === cell.r && matchingPair.start[1] === cell.c && (lastCell[0] !== matchingPair.start[0] || lastCell[1] !== matchingPair.start[1])) ||
+                (matchingPair.end[0] === cell.r && matchingPair.end[1] === cell.c && (lastCell[0] !== matchingPair.end[0] || lastCell[1] !== matchingPair.end[1]));
+
+            if (isTargetEndpoint) {
+                isDrawing = false;
+                playSound('connect');
+                checkValidation();
+            }
+        }
+
+        function handlePointerUp(e) {
+            if (isDrawing) {
+                isDrawing = false;
+                checkValidation();
+            }
+        }
+
+        function redrawSVGPaths() {
+            const svg = document.getElementById('game-svg');
+            const grid = document.getElementById('game-grid');
+            if (!svg || !grid) return;
+
+            svg.innerHTML = '';
+            const rect = grid.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const cellW = rect.width / 6;
+            const cellH = rect.height / 6;
+
+            for (const [colorIdStr, path] of Object.entries(activePaths)) {
+                if (!path || path.length < 2) continue;
+                const colorId = parseInt(colorIdStr, 10);
+                const theme = HALLOWEEN_THEME[colorId];
+
+                let d = '';
+                path.forEach((pt, idx) => {
+                    const x = pt[1] * cellW + cellW / 2;
+                    const y = pt[0] * cellH + cellH / 2;
+                    if (idx === 0) {
+                        d += `M ${x} ${y}`;
+                    } else {
+                        d += ` L ${x} ${y}`;
+                    }
+                });
+
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathEl.setAttribute('d', d);
+                pathEl.setAttribute('stroke', theme.color);
+                pathEl.setAttribute('stroke-width', Math.max(14, cellW * 0.38));
+                pathEl.setAttribute('stroke-linecap', 'round');
+                pathEl.setAttribute('stroke-linejoin', 'round');
+                pathEl.setAttribute('fill', 'none');
+                pathEl.setAttribute('opacity', '0.95');
+
+                pathEl.style.filter = `drop-shadow(0px 0px 8px ${theme.color})`;
+
+                svg.appendChild(pathEl);
+            }
+        }
+
+        function updateProgress() {
+            const level = GAME_LEVELS[currentLevelIndex];
+            
+            let connectedCount = 0;
+            level.pairs.forEach(pair => {
+                const path = activePaths[pair.colorId];
+                if (path && path.length >= 2) {
+                    const head = path[0];
+                    const tail = path[path.length - 1];
+                    const isConn = 
+                        ((head[0] === pair.start[0] && head[1] === pair.start[1] && tail[0] === pair.end[0] && tail[1] === pair.end[1]) ||
+                         (head[0] === pair.end[0] && head[1] === pair.end[1] && tail[0] === pair.start[0] && tail[1] === pair.start[1]));
+                    if (isConn) connectedCount++;
+                }
+            });
+
+            // Calculate Grid Coverage (Total 36 cells)
+            const coveredCells = new Set();
+            Object.values(activePaths).forEach(path => {
+                path.forEach(pt => coveredCells.add(`${pt[0]},${pt[1]}`));
+            });
+
+            const coveragePercent = Math.round((coveredCells.size / 36) * 100);
+
+            document.getElementById('pairs-count').textContent = connectedCount;
+            document.getElementById('coverage-text').textContent = `${coveragePercent}%`;
+            document.getElementById('coverage-bar').style.width = `${coveragePercent}%`;
+        }
+
+        function checkValidation() {
+            updateProgress();
+            const level = GAME_LEVELS[currentLevelIndex];
+
+            // 1. All pairs connected
+            let allConnected = true;
+            for (const pair of level.pairs) {
+                const path = activePaths[pair.colorId];
+                if (!path || path.length < 2) {
+                    allConnected = false;
+                    break;
+                }
+                const head = path[0];
+                const tail = path[path.length - 1];
+                const isConn = 
+                    ((head[0] === pair.start[0] && head[1] === pair.start[1] && tail[0] === pair.end[0] && tail[1] === pair.end[1]) ||
+                     (head[0] === pair.end[0] && head[1] === pair.end[1] && tail[0] === pair.start[0] && tail[1] === pair.start[1]));
+                if (!isConn) {
+                    allConnected = false;
+                    break;
+                }
+            }
+
+            // 2. Strict 100% Grid Coverage (36/36 cells)
+            const coveredCells = new Set();
+            Object.values(activePaths).forEach(path => {
+                path.forEach(pt => coveredCells.add(`${pt[0]},${pt[1]}`));
+            });
+
+            if (allConnected && coveredCells.size === 36) {
+                stopTimer();
+                playSound('victory');
+                showVictoryModal();
+            }
+        }
+
+        function resetCurrentLevel() {
+            playSound('erase');
+            initLevel(currentLevelIndex);
+        }
+
+        // TIMER LOGIC
+        function startTimer() {
+            stopTimer();
+            timerSeconds = 0;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+        }
+
+        function resetTimer() {
+            stopTimer();
+            timerSeconds = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+            const secs = (timerSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').textContent = `${mins}:${secs}`;
+        }
+
+        // VICTORY MODAL
+        function showVictoryModal() {
+            const mins = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+            const secs = (timerSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('modal-time').textContent = `${mins}:${secs}`;
+
+            const modal = document.getElementById('victory-modal');
+            modal.classList.remove('hidden');
+
+            const nextBtn = document.getElementById('next-level-modal-btn');
+            if (currentLevelIndex >= GAME_LEVELS.length - 1) {
+                nextBtn.innerHTML = `<span>Recommencer au début</span> <i class="fa-solid fa-rotate-right"></i>`;
+            } else {
+                nextBtn.innerHTML = `<span>Niveau Suivant</span> <i class="fa-solid fa-arrow-right"></i>`;
+            }
+        }
+
+        function nextLevelFromModal() {
+            document.getElementById('victory-modal').classList.add('hidden');
+            if (currentLevelIndex >= GAME_LEVELS.length - 1) {
+                selectLevel(0);
+            } else {
+                selectLevel(currentLevelIndex + 1);
+            }
+        }
+
+        function switchTab(tabName) {
+            const viewGame = document.getElementById('view-game');
+            const viewPrint = document.getElementById('view-print');
+            const viewSolution = document.getElementById('view-solution');
+
+            const btnGame = document.getElementById('tab-game-btn');
+            const btnPrint = document.getElementById('tab-print-btn');
+            const btnSol = document.getElementById('tab-solution-btn');
+
+            const controls = document.getElementById('game-controls');
+
+            [btnGame, btnPrint, btnSol].forEach(btn => {
+                btn.className = "px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800";
+            });
+
+            viewGame.classList.add('hidden');
+            viewPrint.classList.add('hidden');
+            viewSolution.classList.add('hidden');
+
+            if (tabName === 'game') {
+                viewGame.classList.remove('hidden');
+                btnGame.className = "px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 bg-purple-600 text-white shadow-md";
+                controls.classList.remove('hidden');
+                redrawSVGPaths();
+            } else if (tabName === 'print') {
+                viewPrint.classList.remove('hidden');
+                btnPrint.className = "px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 bg-purple-600 text-white shadow-md";
+                controls.classList.add('hidden');
+            } else if (tabName === 'solution') {
+                viewSolution.classList.remove('hidden');
+                btnSol.className = "px-3 py-1.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 bg-purple-600 text-white shadow-md";
+                controls.classList.add('hidden');
+            }
+        }
+
+        function renderPrintGallery() {
+            const container = document.getElementById('print-gallery');
+            container.innerHTML = '';
+
+            GAME_LEVELS.forEach(level => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-5 rounded-2xl border-2 border-slate-300 shadow-sm flex flex-col items-center space-y-3 page-break";
+
+                const title = document.createElement('h3');
+                title.className = "font-bold text-base text-slate-900 border-b-2 border-slate-200 pb-1.5 w-full text-center";
+                title.textContent = `${level.title} (Grille 6×6)`;
+
+                const gridBox = document.createElement('div');
+                gridBox.className = "w-72 h-72 grid grid-cols-6 grid-rows-6 border-2 border-slate-900 bg-white shadow-inner";
+
+                for (let r = 0; r < 6; r++) {
+                    for (let c = 0; c < 6; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = "border-2 border-slate-800 flex items-center justify-center relative";
+
+                        const ep = level.pairs.find(p => (p.start[0]===r && p.start[1]===c) || (p.end[0]===r && p.end[1]===c));
+                        if (ep) {
+                            const theme = HALLOWEEN_THEME[ep.colorId];
+                            const dot = document.createElement('div');
+                            dot.className = "w-4/5 h-4/5 rounded-full flex items-center justify-center text-xl font-bold border-2 border-slate-900 text-white";
+                            dot.style.backgroundColor = theme.color;
+                            dot.textContent = theme.symbol;
+                            cell.appendChild(dot);
+                        }
+
+                        gridBox.appendChild(cell);
+                    }
+                }
+
+                card.appendChild(title);
+                card.appendChild(gridBox);
+                container.appendChild(card);
+            });
+        }
+
+        function renderSolutionGallery() {
+            const container = document.getElementById('solution-gallery');
+            container.innerHTML = '';
+
+            GAME_LEVELS.forEach(level => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 p-5 rounded-2xl border-2 border-purple-500/40 shadow-lg flex flex-col items-center space-y-3";
+
+                const title = document.createElement('h3');
+                title.className = "font-bold text-sm sm:text-base font-game text-amber-400 text-center w-full border-b border-slate-800 pb-2";
+                title.textContent = level.title;
+
+                const gridBox = document.createElement('div');
+                gridBox.className = "relative w-72 h-72 grid grid-cols-6 grid-rows-6 border-4 border-purple-500/80 bg-slate-950 rounded-xl overflow-hidden";
+
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('class', 'absolute inset-0 w-full h-full pointer-events-none z-10');
+
+                const cellW = 288 / 6;
+                const cellH = 288 / 6;
+
+                // Draw pre-rendered solution paths
+                Object.entries(level.solutionPaths).forEach(([colorIdStr, path]) => {
+                    const colorId = parseInt(colorIdStr, 10);
+                    const theme = HALLOWEEN_THEME[colorId];
+
+                    let d = '';
+                    path.forEach((pt, idx) => {
+                        const x = pt[1] * cellW + cellW / 2;
+                        const y = pt[0] * cellH + cellH / 2;
+                        if (idx === 0) d += `M ${x} ${y}`;
+                        else d += ` L ${x} ${y}`;
+                    });
+
+                    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    pathEl.setAttribute('d', d);
+                    pathEl.setAttribute('stroke', theme.color);
+                    pathEl.setAttribute('stroke-width', '14');
+                    pathEl.setAttribute('stroke-linecap', 'round');
+                    pathEl.setAttribute('stroke-linejoin', 'round');
+                    pathEl.setAttribute('fill', 'none');
+                    pathEl.setAttribute('opacity', '0.9');
+                    svg.appendChild(pathEl);
+                });
+
+                // HTML Grid cells and icons
+                for (let r = 0; r < 6; r++) {
+                    for (let c = 0; c < 6; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = "border-2 border-slate-700/80 flex items-center justify-center relative";
+
+                        const ep = level.pairs.find(p => (p.start[0]===r && p.start[1]===c) || (p.end[0]===r && p.end[1]===c));
+                        if (ep) {
+                            const theme = HALLOWEEN_THEME[ep.colorId];
+                            const dot = document.createElement('div');
+                            dot.className = "w-4/5 h-4/5 rounded-full flex items-center justify-center text-lg font-bold shadow-lg z-20";
+                            dot.style.backgroundColor = theme.color;
+                            dot.textContent = theme.symbol;
+                            cell.appendChild(dot);
+                        }
+
+                        gridBox.appendChild(cell);
+                    }
+                }
+
+                gridBox.appendChild(svg);
+                card.appendChild(title);
+                card.appendChild(gridBox);
+                container.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
